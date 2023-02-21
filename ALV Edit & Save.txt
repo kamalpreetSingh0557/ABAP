@@ -1,0 +1,186 @@
+TABLES : ZABAP_EMPLOYEE.
+
+DATA lv_empId TYPE ZAPEMID.
+SELECT-OPTIONS so_eId FOR lv_empId.
+
+TYPES : BEGIN OF TY_EMP,
+        ZEMPID LIKE ZABAP_EMPLOYEE-ZEMPID,
+        ZEMPNAME LIKE ZABAP_EMPLOYEE-ZEMPNAME,
+        ZEMPADD LIKE ZABAP_EMPLOYEE-ZEMPADD,
+        ZEMPSALARY LIKE ZABAP_EMPLOYEE-ZEMPSALARY,
+        ZEMPDEPT LIKE ZABAP_EMPLOYEE-ZEMPDEPT,
+        ZEMPSALARYKEY LIKE ZABAP_EMPLOYEE-ZEMPSALARYKEY,
+       END OF TY_EMP.
+
+Data ls_emp type TY_EMP.
+DATA lt_emp type table of TY_EMP.
+
+data so_empId type ZKAM_SO_TT_8_12_22_TASK.
+data ls_so_empId like line of so_empId.
+
+loop at so_eId.
+  ls_so_empId-SIGN = so_eId-SIGN.
+  ls_so_empId-OPTIONN = so_eId-OPTION.
+  ls_so_empId-LOW = so_eId-LOW.
+  ls_so_empId-HIGH = so_eId-HIGH.
+  append ls_so_empId to so_empId.
+  clear ls_so_empId.
+endloop.
+
+CALL FUNCTION 'Z_EMP_FM_08_12_22_TASK'
+  EXPORTING
+    I_EMPID        = so_empId
+ IMPORTING
+   E_EMP_IT       = lt_emp
+          .
+*----------------------------------------ALV
+data lt_fcat type slis_t_fieldcat_alv.
+data ls_fcat like line of lt_fcat.
+
+LS_FCAT-fieldname = 'ZEMPID'.
+LS_FCAT-col_pos = 1.
+LS_FCAT-seltext_m = 'Employee ID'.
+LS_FCAT-edit = 'X'.
+APPEND ls_fcat to lt_fcat.
+CLEAR ls_fcat.
+
+LS_FCAT-fieldname = 'ZEMPNAME'.
+LS_FCAT-col_pos = 2.
+LS_FCAT-seltext_m = 'Employee Name'.
+LS_FCAT-edit = 'X'.
+APPEND ls_fcat to lt_fcat.
+CLEAR ls_fcat.
+
+LS_FCAT-fieldname = 'ZEMPADD'.
+LS_FCAT-col_pos = 3.
+LS_FCAT-seltext_m = 'Employee Address'.
+LS_FCAT-edit = 'X'.
+APPEND ls_fcat to lt_fcat.
+CLEAR ls_fcat.
+
+LS_FCAT-fieldname = 'ZEMPSALARY'.
+LS_FCAT-col_pos = 4.
+LS_FCAT-seltext_m = 'Employee Salary'.
+LS_FCAT-edit = 'X'.
+APPEND ls_fcat to lt_fcat.
+CLEAR ls_fcat.
+
+LS_FCAT-fieldname = 'ZEMPDEPT'.
+LS_FCAT-col_pos = 5.
+LS_FCAT-seltext_m = 'Employee Department'.
+LS_FCAT-edit = 'X'.
+APPEND ls_fcat to lt_fcat.
+CLEAR ls_fcat.
+
+LS_FCAT-fieldname = 'ZEMPSALARYKEY'.
+LS_FCAT-col_pos = 6.
+LS_FCAT-seltext_m = 'Employee Salary Key'.
+LS_FCAT-edit = 'X'.
+APPEND ls_fcat to lt_fcat.
+CLEAR ls_fcat.
+
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+ EXPORTING
+   IT_FIELDCAT      = LT_FCAT
+  TABLES
+    T_OUTTAB        = LT_EMP.
+          .
+*---------------------------------------- ALV Event
+data lt_event type slis_t_event.
+data ls_event like line of lt_event.
+
+*--------------------------------------- Event Handling in ALV
+*LS_EVENT-name = 'TOP_OF_PAGE'.
+*LS_EVENT-FORM = 'SUB_TOP'.
+*APPEND LS_EVENT TO LT_EVENT.
+
+LS_EVENT-name = 'USER_COMMAND'.
+LS_EVENT-FORM = 'SUB_USERCOMMAND'.
+APPEND LS_EVENT TO LT_EVENT.
+
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+ EXPORTING
+   I_CALLBACK_PROGRAM                = SY-CPROG
+   IT_FIELDCAT                       = LT_FCAT
+   IT_EVENTS                         = LT_EVENT
+  TABLES
+    T_OUTTAB                         = LT_EMP .
+
+FORM SUB_TOP.
+DATA lt_top TYPE slis_t_listheader.
+DATA ls_top LIKE LINE OF lt_top.
+
+ls_top-info = 'THIS IS TOP OF PAGE EVENT HEADER'.
+ls_top-typ = 'H'.
+APPEND ls_top to lt_top.
+CLEAR ls_top.
+ls_top-info = 'THIS IS TOP OF PAGE EVENT SECTION'.
+ls_top-typ = 'S'.
+APPEND ls_top to lt_top.
+CLEAR ls_top.
+CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+  EXPORTING
+    IT_LIST_COMMENTARY   = LT_TOP.
+ENDFORM.
+
+FORM SUB_USERCOMMAND
+  USING p_ucomm LIKE SY-UCOMM
+        p_selfield TYPE SLIS_SELFIELD.
+
+  DATA lv_deptId TYPE ZABAP_EMPLOYEE-ZEMPDEPT.
+  DATA lt_dept TYPE TABLE OF ZKAM_DEPARTMENT.
+
+  IF p_selfield-fieldname = 'ZEMPDEPT'.
+      lv_deptID = p_selfield-value.
+
+  SELECT *
+    FROM ZKAM_DEPARTMENT
+    INTO TABLE lt_dept
+    WHERE ZKAM_DEPT_ID = lv_deptid.
+
+*---------------------------------------SAVE Event
+ CASE p_ucomm.
+	
+    WHEN '&DATA_SAVE'.
+	PERFORM f_save_data.
+ ENDCASE.
+*---------------------------------------
+	
+ CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      I_STRUCTURE_NAME = 'ZKAM_DEPARTMENT'
+    TABLES
+      T_OUTTAB        = LT_DEPT.
+
+    ENDIF.
+ENDFORM.
+
+*----------------------------------------------SAVE
+*DATA it_empcpy TYPE STANDARD TABLE OF TY_EMP.
+*DATA it_changes TYPE STANDARD TABLE OF TY_EMP.
+
+DATA it_empcpy TYPE TABLE OF TY_EMP.
+DATA it_changes TYPE TABLE OF TY_EMP.
+
+it_empcpy[] = lt_emp[].
+
+FORM f_save-data.
+ DATA wa_empcpy TYPE TY_EMP.
+ DATA wa_emp_tmp TYPE TY_EMP.
+
+ CLEAR it_changes[].
+
+ LOOP AT lt_emp INTO ls_emp.
+    READ TABLE it_empcpy INTO wa_empcpy INDEX sy-tabix.
+    IF wa_empcpy NE ls_emp.
+ 	APPEND ls_emp TO it_changes.
+ 	MOVE-CORRESPONDING ls_emp TO wa_emp_tmp.
+
+      MODIFY lt_emp FROM wa_emp_tmp.
+    ENDIF.	
+
+    CLEAR wa_empcpy. 
+ ENDLOOP.
+ENDFORM.
+
+*https://answers.sap.com/questions/4077447/pf-status--user-command.html
